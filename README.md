@@ -1,11 +1,11 @@
 # sadpanda_nharchivist_helper
-Python script allowing you to download galleries from sadpanda directly into your [nhentai_archivist](https://github.com/9-FS/nhentai_archivist) database in .cbz format and with [Komga](https://komga.org/) compatibility, e.g., to archive doujins that have been excluded from nhentai (like purged stuff or works containing certain tags like 'furry')
+Python script allowing you to download galleries from sadpanda directly into your [nhentai_archivist](https://github.com/9-FS/nhentai_archivist) database in .cbz format and with [Komga](https://komga.org/) compatibility, e.g., to archive doujins that have been excluded from nhentai (like purged stuff or works containing certain tags like 'furry').
 
 ## Quick Start
 
-1. Place the executable next to your nhentai_archivist.exe.
-2. Execute the program once to add missing variables to your `./config/.env`.
-3. Execute the program again and use the -u flag followed by the exhentai URL(s) you want to download separated by spaces.
+1. Place the executable next to your nhentai_archivist.exe
+2. Execute the program once to add missing variables to your `./config/.env`
+3. Execute the program again and use the `-u` flag followed by the exhentai URL(s) you want to download separated by spaces
 
 Galleries will be saved to `./{LIBRARY_PATH}/sadpanda/`.
 
