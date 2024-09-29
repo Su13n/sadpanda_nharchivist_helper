@@ -3,9 +3,10 @@ Python script allowing you to download galleries from sadpanda directly into you
 
 ## Quick Start
 
-1. Place the executable next to your nhentai_archivist.exe
-2. Execute the program once to add missing variables to your `./config/.env`
-3. Execute the program again and use the `-u` flag followed by the exhentai URL(s) you want to download separated by spaces
+1. Make sure you have sufficient GP on your e-hentai account to download full-size images.
+2. Place the executable next to your nhentai_archivist.exe
+3. Execute the program once to add missing variables to your `./config/.env`
+4. Execute the program again and use the `-u` flag followed by the exhentai URL(s) you want to download separated by spaces
 
 Galleries will be saved to `./{LIBRARY_PATH}/sadpanda/`.
 
@@ -13,9 +14,9 @@ For mass downloads place your URLs in the generated `./config/sadpandaurls.txt`.
 
 ## New Environment Variables
 ```TOML
-IGNEOUS = ""
 IPB_MEMBER_ID = ""
 IPB_PASS_HASH = ""
+IPB_SESSION_ID = ""
 SK = ""
 ```
 Cookies. I did not bother testing which cookies are necessary for exhentai authentication so I simply added all of them.
@@ -33,3 +34,7 @@ Cookies. I did not bother testing which cookies are necessary for exhentai authe
 Example:
 
 `sadpandownloader.exe -f -q 90`
+
+## To-Do
+
+- Add option to download low-res images without GP.
