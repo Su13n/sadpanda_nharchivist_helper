@@ -83,26 +83,66 @@ def extract_image_urls(session, gallery_id, gallery_token, filecount):
         logging.warning(f"Expected {filecount} images, but found {len(image_urls)}")
 
     return image_urls
+import glob
+
+
+def download_file_with_session(session, url, local_path):
+    response = session.get(url, stream=True)
+    
+    # Ensure the request was successful
+    if response.status_code == 200:
+        with open(local_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return local_path
+    else:
+        raise Exception(f"Failed to download file. Status code: {response.status_code}")
+
+def is_file_complete(local_path, url, session):
+    if os.path.exists(local_path):
+        local_size = os.path.getsize(local_path)
+        server_size = int(session.head(url).headers.get('Content-Length', 0))
+        return local_size == server_size
+    return False
 
 def download_images(session, image_urls, output_dir, compression):
     for i, url in enumerate(tqdm(image_urls, desc="Downloading images")):
-        response = session.get(url)
-        response.raise_for_status()
-        file_extension = os.path.splitext(url)[1]
-        filename = f"{output_dir}/{i+1:03d}{file_extension}"
-        if not os.path.exists(filename):
-            with open(filename, 'wb') as f:
-                f.write(response.content)
-        if compression['on']:
-            t1 = threading.Thread(target=save_as_webp,args=(filename, compression['quality']))
-            t1.start()
-            t1.join()
+        try:
+            response = session.get(url, stream=True)
+            response.raise_for_status()
+            
+            # Check Content-Type to ensure it’s an image
+            content_type = response.headers.get('Content-Type', '')
+            if 'image' not in content_type:
+                logging.error(f"URL {url} did not return an image. Skipping.")
+                continue
+
+            file_extension = os.path.splitext(url)[1]
+            filename = f"{output_dir}/{i+1:03d}{file_extension}"
+
+            if not os.path.exists(filename):
+                # Save the image in chunks to avoid incomplete downloads
+                with open(filename, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+            # Proceed with compression if enabled
+            if compression['on'] and os.path.exists(filename):
+                t1 = threading.Thread(target=save_as_webp, args=(filename, compression['quality']))
+                t1.start()
+                t1.join()
+
+        except Exception as e:
+            logging.error(f"Error downloading {url}: {str(e)}")
 
 def save_as_webp(original, q):
-    image = Image.open(original)
-    filename = os.path.splitext(original)[0] + '.webp'
-    image.save(filename, 'webp', optimize = True, quality = q)
-    os.remove(original)
+    try:
+        image = Image.open(original)
+        filename = os.path.splitext(original)[0] + '.webp'
+        image.save(filename, 'webp', optimize=True, quality=q)
+        os.remove(original)
+    except Exception as e:
+        logging.error(f"Error compressing {original}: {str(e)}")
 
 def process_metadata(metadata): #nhentai archive compatibility
     tags = metadata.get('tags', [])
@@ -163,6 +203,7 @@ def add_env_variables_if_not_exist(env_path):
         'IGNEOUS': '',
         'IPB_MEMBER_ID': '',
         'IPB_PASS_HASH': '',
+        'IPB_SESSION_ID': '',
         'SK': ''
     }
 
@@ -240,9 +281,9 @@ if __name__ == "__main__":
     load_env_variables()
     
     cookies = {
-        "igneous": os.getenv('IGNEOUS'),
         "ipb_member_id": os.getenv('IPB_MEMBER_ID'),
         "ipb_pass_hash": os.getenv('IPB_PASS_HASH'),
+        "ipb_session_id": os.getenv('IPB_SESSION_ID'),
         "sk": os.getenv('SK')
     }
             
