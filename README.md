@@ -14,6 +14,7 @@ For mass downloads place your URLs in the generated `./config/sadpandaurls.txt`.
 
 ## New Environment Variables
 ```TOML
+IGNEOUS = ""
 IPB_MEMBER_ID = ""
 IPB_PASS_HASH = ""
 IPB_SESSION_ID = ""
