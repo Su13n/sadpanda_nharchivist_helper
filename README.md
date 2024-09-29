@@ -39,6 +39,7 @@ Cookies. I did not bother testing which cookies are necessary for exhentai authe
 Example:
 
 `sadpandownloader.exe -u https://some.e-hentai.url/ https://or.more.if/you-want -c -q 90`
+
 `sadpandownler.exe -f -c --full-resolution`
 
 ## To-Do
