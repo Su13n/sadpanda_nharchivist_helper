@@ -81,13 +81,6 @@ def extract_image_urls(session, gallery_id, gallery_token, filecount, fullResEna
 
     return image_urls
 
-def is_file_complete(local_path, url, session):
-    if os.path.exists(local_path):
-        local_size = os.path.getsize(local_path)
-        server_size = int(session.head(url).headers.get('Content-Length', 0))
-        return local_size == server_size
-    return False
-
 def download_images(session, image_urls, output_dir, compression):
     for i, url in enumerate(tqdm(image_urls, desc="Downloading images")):
         file_extension = os.path.splitext(url)[1]
