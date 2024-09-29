@@ -13,6 +13,7 @@ import argparse
 from tqdm import tqdm
 import threading
 import re
+import glob
 import logging
 from dotenv import load_dotenv, set_key
 
@@ -41,29 +42,25 @@ def make_api_call(session, gallery_id, gallery_token):
     response.raise_for_status()
     return response.json()
 
-def get_image_url(session, page_url):
+def get_image_url(session, page_url, fullResEnabled):
     response = session.get(page_url)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
     
     # Look for the full image download link
-    full_img_link = soup.find('a', href=re.compile(r'https://e.hentai\.org/fullimg/.*'))
-    if full_img_link:
-        return full_img_link['href']
+    img_link = soup.find('a', href=re.compile(r'https://e.hentai\.org/fullimg/.*')) if fullResEnabled else soup.find('img', id='img')
     
-    # If full image link is not found, look for the regular image
-    img_tag = soup.find('img', id='img')
-    if img_tag:
-        return img_tag['src']
+    if img_link:
+        return img_link['href'] if fullResEnabled else img_link['src']
     
     logging.warning(f"No image found on page: {page_url}")
     return None
 
-def extract_image_urls(session, gallery_id, gallery_token, filecount):
+def extract_image_urls(session, gallery_id, gallery_token, filecount, fullResEnabled):
     base_url = f"https://exhentai.org/g/{gallery_id}/{gallery_token}/"
     image_urls = []
     page_count = (filecount - 1) // 20 + 1  # Calculate the number of pages
-
+    requires_gp = False
     for page in tqdm(range(page_count), desc="Extracting image URLs"):
         url = f"{base_url}?p={page}"
         response = session.get(url)
@@ -75,7 +72,7 @@ def extract_image_urls(session, gallery_id, gallery_token, filecount):
         
         for link in image_page_links:
             image_page_url = link['href']
-            image_url = get_image_url(session, image_page_url)
+            image_url = get_image_url(session, image_page_url, fullResEnabled)
             if image_url:
                 image_urls.append(image_url)
 
@@ -83,20 +80,6 @@ def extract_image_urls(session, gallery_id, gallery_token, filecount):
         logging.warning(f"Expected {filecount} images, but found {len(image_urls)}")
 
     return image_urls
-import glob
-
-
-def download_file_with_session(session, url, local_path):
-    response = session.get(url, stream=True)
-    
-    # Ensure the request was successful
-    if response.status_code == 200:
-        with open(local_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        return local_path
-    else:
-        raise Exception(f"Failed to download file. Status code: {response.status_code}")
 
 def is_file_complete(local_path, url, session):
     if os.path.exists(local_path):
@@ -107,33 +90,34 @@ def is_file_complete(local_path, url, session):
 
 def download_images(session, image_urls, output_dir, compression):
     for i, url in enumerate(tqdm(image_urls, desc="Downloading images")):
-        try:
-            response = session.get(url, stream=True)
-            response.raise_for_status()
-            
-            # Check Content-Type to ensure it’s an image
-            content_type = response.headers.get('Content-Type', '')
-            if 'image' not in content_type:
-                logging.error(f"URL {url} did not return an image. Skipping.")
-                continue
+        file_extension = os.path.splitext(url)[1]
+        filename = f"{output_dir}/{i+1:03d}{file_extension}"
+        rawname = f"{output_dir}/{i+1:03d}*"
+        if not glob.glob(rawname):
+            for attempt in range (1, 6):
+                try:
+                    response = session.get(url, stream=True)
+                    response.raise_for_status()
+                   
+                    # Check Content-Type to ensure it’s an image
+                    content_type = response.headers.get('Content-Type', '')
+                    if 'image' not in content_type:
+                        logging.error(f"URL {url} did not return an image. Skipping.")
+                        continue
 
-            file_extension = os.path.splitext(url)[1]
-            filename = f"{output_dir}/{i+1:03d}{file_extension}"
+                    if not os.path.exists(filename):
+                        # Save the image in chunks to avoid incomplete downloads
+                        with open(filename, 'wb') as f:
+                            f.write(response.content)
 
-            if not os.path.exists(filename):
-                # Save the image in chunks to avoid incomplete downloads
-                with open(filename, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                    # Proceed with compression if enabled
+                    if compression['on'] and os.path.exists(filename):
+                        t1 = threading.Thread(target=save_as_webp, args=(filename, compression['quality']))
+                        t1.start()
+                        t1.join()
 
-            # Proceed with compression if enabled
-            if compression['on'] and os.path.exists(filename):
-                t1 = threading.Thread(target=save_as_webp, args=(filename, compression['quality']))
-                t1.start()
-                t1.join()
-
-        except Exception as e:
-            logging.error(f"Error downloading {url}: {str(e)}")
+                except Exception as e:
+                    logging.error(f"Error downloading {url}: {str(e)}")
 
 def save_as_webp(original, q):
     try:
@@ -213,7 +197,7 @@ def add_env_variables_if_not_exist(env_path):
             set_key(env_path, key, value)  # Add the variable to the .env file
 
 
-def main(urls, cookies, user_agent, library_path, compression):
+def main(urls, cookies, user_agent, library_path, compression, fullResEnabled):
     session = get_session(cookies, user_agent)
     for url in urls:
         try:
@@ -224,7 +208,7 @@ def main(urls, cookies, user_agent, library_path, compression):
             filecount = int(metadata['filecount'])
             gallery_name = metadata['title']
 
-            image_urls = extract_image_urls(session, gallery_id, gallery_token, filecount)
+            image_urls = extract_image_urls(session, gallery_id, gallery_token, filecount, fullResEnabled)
 
             if not image_urls:
                 logging.error(f"No images found for gallery {gallery_id}. Skipping.")
@@ -259,7 +243,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sadpanda Gallery Downloader")
     parser.add_argument("-u", "--urls", nargs="*", help="URLs to process")
     parser.add_argument("-f", "--file", action='store_true', help="Mass download galleries listed in ./config/sadpandaurls.txt")
-    parser.add_argument("-q", "--quality", nargs=1, help="Convert images to .webp at chosen quality (90 is recommended for minimal quality degradation)")
+    parser.add_argument("-w", "--webp", action='store_true', help="Toggle .webp conversion.")
+    parser.add_argument("-q", "--quality", type=int, default=100, help="Convert images to .webp at chosen quality (90 is recommended for minimal quality degradation)")
+    parser.add_argument("--full-resolution", action='store_true', help="Toggles full-res download requiring GP.")
     args = parser.parse_args()
     
     urls_path = './config/sadpandaurls.txt'
@@ -276,11 +262,13 @@ if __name__ == "__main__":
     if args.file:
         with open(urls_path, 'r') as f:
             urls.extend(f.read().splitlines())
-            
+        
+    fullResEnabled = True if args.full_resolution else False
     
     load_env_variables()
     
     cookies = {
+        "igneous": os.getenv('IGNEOUS'),
         "ipb_member_id": os.getenv('IPB_MEMBER_ID'),
         "ipb_pass_hash": os.getenv('IPB_PASS_HASH'),
         "ipb_session_id": os.getenv('IPB_SESSION_ID'),
@@ -288,15 +276,16 @@ if __name__ == "__main__":
     }
             
     compression = {
-        "on" : False,
-        "quality" : 100
+        "on" : args.webp,
+        "quality" : args.quality
     }
     
-    if args.quality and args.quality[0].isnumeric():
-        q = int(args.quality[0])
-        print(f'Quality: {q}')
+    if args.quality:
+        q = args.quality
+        logging.info(f'Quality: {q}')
         if q >= 0 and q <=100:
-            compression['on'] = True
-            compression['quality'] = q
+            main(urls, cookies, os.getenv('USER_AGENT'), os.getenv('LIBRARY_PATH'), compression, fullResEnabled)
+        else:
+            logging.error(f"Quality {q} is invalid (0-100).")
 
-    main(urls, cookies, os.getenv('USER_AGENT'), os.getenv('LIBRARY_PATH'), compression)
+    
