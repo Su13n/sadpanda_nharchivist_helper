@@ -29,12 +29,17 @@ Cookies. I did not bother testing which cookies are necessary for exhentai authe
 
 `-u [URL1 URL2 ...]` to use URLs straight from the terminal.
 
-`-q QUALITY` to enable .webp conversion and set the desired quality. Recommend 90 for near lossless quality but noticeable size reduction.
+`-c` to enable .webp conversion. Default quality is lossless. Only worth it on original full-resolution images.
+
+`-q QUALITY` to set the desired .webp quality. Recommend 90 for near lossless quality but noticeable size reduction when using. Avoid if the gallery is already compressed to .jpeg.
+
+`--full-resolution` enables full-res download if it is available for the gallery. Some full-res galleries cost GP, so be check whether you (need to) have sufficient balance beforehand.
 
 Example:
 
-`sadpandownloader.exe -f -q 90`
+`sadpandownloader.exe -u https://some.e-hentai.url/ https://or.more.if/you-want -c -q 90`
+`sadpandownler.exe -f -c --full-resolution`
 
 ## To-Do
 
-- Add option to download low-res images without GP.
+- Add auto-recognition of galleries that can be downloaded at full resolution without GP
